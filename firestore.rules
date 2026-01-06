@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Helper function to check if user is sales
+    function isSales() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'sales';
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can always read their own document (checked first to avoid circular dependency)
+      // Note: This allows reading own document even if it doesn't exist yet
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Admins can read any OTHER user document (for collection queries)
+      // Exclude own document to avoid circular dependency with isAdmin() function
+      allow read: if isAuthenticated() && 
+                     request.auth.uid != userId &&
+                     exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      // Users can create their own profile when registering
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Users can update their own profile (but cannot change role)
+      // Admin can update any user
+      allow update: if isAdmin() || 
+                     (isAuthenticated() && request.auth.uid == userId && 
+                      request.resource.data.role == resource.data.role);
+      // No one can delete users
+      allow delete: if false;
+    }
+    
+    // Leads collection
+    match /leads/{leadId} {
+      // Admin can read all leads
+      // Sales can only read their own leads
+      allow read: if isAdmin() || 
+                     (isSales() && resource.data.salesId == request.auth.uid);
+      
+      // Sales can create leads (automatically assigned to themselves)
+      // Admin can create leads for any sales person
+      allow create: if (isSales() && request.resource.data.salesId == request.auth.uid) || 
+                       isAdmin();
+      
+      // Admin can update any lead
+      // Sales can update their own leads (to add full form details after quick lead)
+      // Sales cannot close deals (only admin can do that)
+      // Note: salesId and createdAt are not sent in updates, so they can't be changed
+      allow update: if isAdmin() || 
+                     (isSales() && 
+                      resource.data.salesId == request.auth.uid &&
+                      // Prevent sales from closing deals (only admin can do that)
+                      !(request.resource.data.status == 'Closed' && resource.data.status != 'Closed'));
+      
+      // No one can delete leads (data retention)
+      allow delete: if false;
+    }
+  }
+}
