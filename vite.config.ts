@@ -7,4 +7,7 @@ export default defineConfig({
     port: 3000,
     host: true, // Expose server on network (accessible via IP address)
   },
+  build: {
+    outDir: "dist",
+  },
 })
