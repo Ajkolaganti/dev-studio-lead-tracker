@@ -39,13 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Fetch user profile from Firestore, auto-create if missing
   const fetchUserProfile = async (user: FirebaseUser) => {
     try {
-      console.log("Fetching user profile for:", user.uid)
       const userDoc = await getDoc(doc(db, "users", user.uid))
-      console.log("User document exists:", userDoc.exists())
       
       if (userDoc.exists()) {
         const data = userDoc.data()
-        console.log("User data:", data)
         setUserProfile({
           uid: user.uid,
           name: data.name,
@@ -54,7 +51,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
       } else {
         // User document doesn't exist - auto-create it with default values
-        console.warn("User document not found, creating default profile for uid:", user.uid)
         const defaultName = user.email?.split("@")[0] || "User"
         const defaultProfile: User = {
           uid: user.uid,
@@ -73,8 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error("Error fetching user profile:", error)
-      console.error("Error code:", error.code)
-      console.error("Error message:", error.message)
       // Set userProfile to null so ProtectedRoute can handle it
       setUserProfile(null)
     }
@@ -88,12 +82,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Register function (creates user in Auth and Firestore)
   const register = async (email: string, password: string, name: string, adminKey?: string) => {
+    // Validate admin key BEFORE creating the user account
+    const validAdminKey = import.meta.env.VITE_ADMIN_KEY || "ADMIN2024"
+    const providedKey = adminKey?.trim()
+    
+    // If an admin key is provided, it MUST match exactly, otherwise reject before creating account
+    if (providedKey !== undefined && providedKey !== "") {
+      if (providedKey !== validAdminKey) {
+        throw new Error("Invalid admin key. Please enter the correct admin key or register as a sales user.")
+      }
+    }
+    
+    // Create Firebase user account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password)
 
-    // Check if admin key is provided and matches
-    // Default admin key is "ADMIN2024" - change this in production!
-    const validAdminKey = import.meta.env.VITE_ADMIN_KEY || "ADMIN2024"
-    const isAdmin = adminKey === validAdminKey
+    // Determine role: admin only if key was provided and matched
+    const isAdmin = providedKey !== undefined && providedKey !== "" && providedKey === validAdminKey
 
     // Create user profile in Firestore
     const userProfile: User = {

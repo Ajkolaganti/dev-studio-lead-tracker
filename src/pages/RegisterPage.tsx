@@ -159,9 +159,6 @@ export function RegisterPage() {
                   onChange={(e) => setAdminKey(e.target.value)}
                   placeholder="Enter admin key"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  Default key: ADMIN2024 (change in .env as VITE_ADMIN_KEY)
-                </p>
               </div>
             )}
           </div>
