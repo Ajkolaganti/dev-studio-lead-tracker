@@ -5,13 +5,14 @@ import { collection, query, where, orderBy, onSnapshot, type QueryConstraint } f
 import { db } from "../firebase/config"
 import type { Lead } from "../utils/types"
 
-export function useLeads(salesId?: string) {
+export function useLeads(salesId?: string | null) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     // If salesId is undefined, wait for it to be available (currentUser not loaded yet)
+    // If salesId is null, fetch all leads (for admin users)
     if (salesId === undefined) {
       setLoading(true)
       return
